@@ -1,7 +1,8 @@
-use std::fs::read;
-use std::io::{BufRead, BufReader, Read, Write};
+mod ModuleData;
+use std::io::{BufReader, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::time::Duration;
+
 
 fn main() -> std::io::Result<()> {
     let listener_result = TcpListener::bind("127.0.0.1:4200")?;
@@ -15,12 +16,12 @@ fn main() -> std::io::Result<()> {
 
 fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     println!("Received request\n");
-
-    match stream.set_read_timeout(Some(Duration::from_millis(100))) {
+    
+    match stream.set_read_timeout(Some(Duration::from_millis(500))) {
         Ok(()) => 0,
         Err(_) => 1
     };
-
+    
     let lines = match read_headers(&mut stream) {
         Ok(result) => result,
         Err(_) => {
@@ -41,12 +42,28 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     Ok(())
 }
 
-fn send_response(stream: &mut TcpStream) -> std::io::Result<()> {
-    let response = "HTTP/1.1 200 OK\n\n <html><body><h1>Hello world</h1><p>Welcome to Rust</p></body></html>";
+fn send_response(stream: &mut TcpStream) -> std::io::Result<()> {  
+    
+    let path = "wwwroot/index.html";
+    let headers = "HTTP/1.1 200 OK\ncontent-type: text/html\n\n".to_owned();
+
+    let response = match std::fs::read_to_string(path) {
+        Ok(v) => v.to_owned(),
+        Err(_) => "<html><body><h1>Rust demo server</h1><p>Welcome to Rust</p></body></html>".to_owned()
+    };
+    
+    println!("Writing headers");
+    let size = match stream.write(headers.as_bytes()) {
+        Ok(s) => s,
+        Err(_) => panic!("Failed to write headers")
+    };
+    println!("{}",size);
+
+    println!("Writing body");
     let bytes = response.as_bytes();
     return match stream.write(bytes) {
         Ok(_) => Ok(()),
-        Err(_) => panic!("")
+        Err(_) => panic!("Failed to write body")
     };
 }
 
@@ -77,15 +94,13 @@ fn read_headers(stream: &mut TcpStream) -> Result<Vec<String>, ()> {
                 break;
             }
         }
-        let mut copy = current_line.clone();
+        let copy = current_line.clone();
         let s = match std::str::from_utf8(&copy) {
             Ok(v) => v,
-            Err(e) => Default::default(),
+            Err(_) => Default::default(),
         };
         current_line.clear();
         lines.push(s.to_owned());
     }
     Ok(lines.to_owned())
 }
-
-
