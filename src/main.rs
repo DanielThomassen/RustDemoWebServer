@@ -1,11 +1,21 @@
-mod ModuleData;
-use std::io::{BufReader, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::time::Duration;
+use crate::headers::get_path;
+use crate::response::send_response;
+
+mod headers;
+mod response;
+mod helpers;
 
 
 fn main() -> std::io::Result<()> {
-    let listener_result = TcpListener::bind("127.0.0.1:4200")?;
+    std::env::set_var("RUST_BACKTRACE", "1");
+
+    let address = "127.0.0.1:4200";
+
+    let listener_result = TcpListener::bind(address)?;
+
+    println!("Server listening on {}", address);
 
     for stream in listener_result.incoming() {
         handle_client(stream?)?;
@@ -16,91 +26,43 @@ fn main() -> std::io::Result<()> {
 
 fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     println!("Received request\n");
-    
+
     match stream.set_read_timeout(Some(Duration::from_millis(500))) {
         Ok(()) => 0,
         Err(_) => 1
     };
-    
-    let lines = match read_headers(&mut stream) {
+
+    let headers = match headers::read_headers(&mut stream) {
         Ok(result) => result,
         Err(_) => {
-            println!("error");
             stream.shutdown(Shutdown::Both)?;
             panic!("Failed to read request")
         }
     };
 
-    for line in lines {
-        println!("{}", line);
+    if headers.len() == 0 {
+        send_response(&mut stream,"400 Bad Request","","");
+        println!("Bad request");
+        return Ok(());
     }
 
-    send_response(&mut stream)?;
+    for (key, value) in &headers {
+        if value.len() == 0 {
+            println!("{}",key);
+        } else {
+            println!("{}:{}",key,value);
+        }
+    }
 
-    // stream.shutdown(Shutdown::Both)?;
+    let path = match get_path(&headers) {
+        Ok(str) => str,
+        Err(v) => v
+    };
+
+    println!("{}",path);
+
+    response::send_html_page(&mut stream, path)?;
+
     println!("Request processed\n");
     Ok(())
-}
-
-fn send_response(stream: &mut TcpStream) -> std::io::Result<()> {  
-    
-    let path = "wwwroot/index.html";
-    let headers = "HTTP/1.1 200 OK\ncontent-type: text/html\n\n".to_owned();
-
-    let response = match std::fs::read_to_string(path) {
-        Ok(v) => v.to_owned(),
-        Err(_) => "<html><body><h1>Rust demo server</h1><p>Welcome to Rust</p></body></html>".to_owned()
-    };
-    
-    println!("Writing headers");
-    let size = match stream.write(headers.as_bytes()) {
-        Ok(s) => s,
-        Err(_) => panic!("Failed to write headers")
-    };
-    println!("{}",size);
-
-    println!("Writing body");
-    let bytes = response.as_bytes();
-    return match stream.write(bytes) {
-        Ok(_) => Ok(()),
-        Err(_) => panic!("Failed to write body")
-    };
-}
-
-fn read_headers(stream: &mut TcpStream) -> Result<Vec<String>, ()> {
-    let mut current_line: Vec<u8> = Default::default();
-    let mut lines: Vec<String> = Default::default();
-    let newline: u8 = 10;
-    let mut buf: [u8; 1] = Default::default();
-
-    let mut reader = BufReader::new(stream);
-
-
-    loop {
-        let foo = match reader.read(&mut buf) {
-            Ok(num) => num,
-            Err(_) => 0
-        };
-
-        if foo == 0 {
-            break;
-        }
-        let char = buf[0];
-        if char != newline {
-            current_line.push(char);
-            continue;
-        } else {
-            if current_line.len() == 1 {
-                break;
-            }
-        }
-        let copy = current_line.clone();
-        let s = match std::str::from_utf8(&copy) {
-            Ok(v) => v,
-            Err(_) => Default::default(),
-        };
-        current_line.clear();
-        lines.push(s.to_owned());
-    }
-    Ok(lines.to_owned())
 }
