@@ -25,8 +25,6 @@ fn main() -> std::io::Result<()> {
 
 
 fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
-    println!("Received request\n");
-
     match stream.set_read_timeout(Some(Duration::from_millis(500))) {
         Ok(()) => 0,
         Err(_) => 1
@@ -41,18 +39,19 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     };
 
     if headers.len() == 0 {
-        send_response(&mut stream,"400 Bad Request","","");
+        let headers: Vec<&str> = Vec::new();
+        send_response(&mut stream,response::response_codes::HTTP_400_BAD_REQUEST,&headers,"");
         println!("Bad request");
         return Ok(());
     }
 
-    for (key, value) in &headers {
-        if value.len() == 0 {
-            println!("{}",key);
-        } else {
-            println!("{}:{}",key,value);
-        }
-    }
+    // for (key, value) in &headers {
+    //     if value.len() == 0 {
+    //         println!("{}",key);
+    //     } else {
+    //         println!("{}:{}",key,value);
+    //     }
+    // }
 
     let path = match get_path(&headers) {
         Ok(str) => str,
@@ -61,7 +60,7 @@ fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
 
     println!("{}",path);
 
-    response::send_html_page(&mut stream, path)?;
+    response::send_static_file(&mut stream, path)?;
 
     println!("Request processed\n");
     Ok(())
