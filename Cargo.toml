@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.23"
+websocket = "0.26.5"
+tokio = "1.23.1"
+tokio-reactor = "0.1.12"
+handlebars = "4.3.6"

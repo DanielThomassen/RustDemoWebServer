@@ -47,7 +47,9 @@ pub fn get_extension(v: &str) -> Result<&str, ()> {
                 return Ok(&v[i..]);
             }
         }
-        
+        if i == 0 {
+            break;
+        }
         i = i-1;
     }
     return Err(());

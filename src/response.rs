@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::{net::TcpStream};
 use crate::helpers::{write_string, get_extension};
@@ -14,25 +15,42 @@ pub mod response_codes {
 }
 
 
-pub fn send_static_file(stream: &mut TcpStream, requested_path: &str) -> std::io::Result<()> {
+pub fn send_static_file(stream: &mut TcpStream, requested_path: &str, request_body: &str) -> std::io::Result<()> {
     let mut path = String::from("wwwroot/");
 
-    if requested_path.len() > 1 {
-        path.push_str(&requested_path[1..]);
+    let mut end_index = requested_path.len();    
+
+    match requested_path.chars().position(|c| c == '?') {
+        Some(v) => end_index = v,
+        None => {},
+    };
+
+    match requested_path.chars().position(|c| c == '#') {
+        Some(v) => {
+            if v < end_index {
+                end_index = v;
+            }
+        },
+        None => {},
+    }
+    
+
+
+    if end_index > 0 && requested_path.len() > 1 {
+        path.push_str(&requested_path[1..end_index]);
     } else {
         path.push_str("index.html");
     }
 
     let status_code: &str;
-    let body: String;
-    
+        
     let mut headers: Vec<&str> = Vec::new();
-    println!("{}",path.as_str());
-
-    let file_exists = std::path::Path::new(path.as_str()).exists();
+    println!("path {}",path.as_str());
+    let mut body = String::new();
+    let file_exists = std::path::Path::new(path.as_str()).is_file();
     match std::fs::read_to_string(path.as_str()) {
         Ok(v) => {
-            body = v;
+            body = render_page(&v, &headers, request_body);
             status_code = response_codes::HTTP_200_OK;
             headers.push(get_content_type_header(path.as_str()));
         }
@@ -135,3 +153,31 @@ fn get_content_type_header(file: &str) -> &str {
     }
 }
 
+fn render_page(contents: &str, _headers: &Vec<&str>, body: &str) -> String {
+    let mut data = BTreeMap::new();
+
+    // TODO query params
+
+    // TODO Multipart form
+    let lines = body.split('\n');
+    println!("body length {}",body.len());
+    
+    lines.for_each(|item| {
+        let items = item.split('=').collect::<Vec<&str>>();
+        if items.len() > 1 {
+            data.insert(items[0], items[1]);
+            println!("PostKey: {}",items[0]);
+            println!("PostValue: {}",items[1]);
+        }
+    });
+
+    return render_handlebars_template(contents, &data);
+}
+
+fn render_handlebars_template(template: &str, data: &BTreeMap<&str,&str>) -> String {
+    let mut handlebars = handlebars::Handlebars::new();
+
+    assert!(handlebars.register_template_string("t1", template).is_ok());
+
+    return handlebars.render("t1", data).unwrap();
+}

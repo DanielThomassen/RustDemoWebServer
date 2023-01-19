@@ -1,6 +1,7 @@
 use std::net::TcpStream;
 use std::io::{BufReader, Read};
 
+
 pub fn get_path(headers: &Vec<(String,String)>) -> Result<&str, &str> {
     if headers.len() == 0 {
         return Ok("/");
@@ -10,7 +11,7 @@ pub fn get_path(headers: &Vec<(String,String)>) -> Result<&str, &str> {
     split.nth(1).ok_or("/")
 }
 
-pub fn read_headers(stream: &mut TcpStream) -> Result<Vec<(String, String)>, ()> {
+pub fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String)>,String), ()> {
     let mut current_line: Vec<u8> = Default::default();
 
     const NEWLINE: u8 = 10;
@@ -62,5 +63,31 @@ pub fn read_headers(stream: &mut TcpStream) -> Result<Vec<(String, String)>, ()>
         current_line.clear();
         is_header_name = true;
     }
-    Ok(headers)
+    println!("{} {}",headers[headers.len() -1].0,headers[headers.len() -1].1);
+    current_line.clear();
+    let mut i = 0;
+    let mut body = String::new();
+    loop {
+        i += 1;
+        let bytes_read = match reader.read(&mut buf) {
+            Ok(num) => num,
+            Err(_) => 0
+        };
+        println!("body {}",i);
+
+        if bytes_read == 0 {
+            break;
+        }
+        if buf[0] != NEWLINE {
+            current_line.push(buf[0]);
+            continue;
+        }        
+        body.push_str(&crate::helpers::byte_array_to_string(&current_line));
+        current_line.clear();
+    }
+    if current_line.len() > 0 {
+        body.push_str(&crate::helpers::byte_array_to_string(&current_line));
+    }
+
+    Ok((headers,body))
 }
