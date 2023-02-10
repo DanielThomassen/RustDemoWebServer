@@ -3,36 +3,51 @@ use async_std::net::TcpListener;
 use async_std::net::TcpStream;
 use async_std::prelude::*;
 use crate::headers::get_path;
-use crate::response::send_response;
+use crate::response::response_actions::*;
+use crate::response::response_codes::HTTP_400_BAD_REQUEST;
+
+
 use futures::executor::block_on;
 
 mod headers;
-mod response;
 mod helpers;
+mod response;
 
 fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_BACKTRACE", "1");
+    // Enable stacktrace
+    std::env::set_var("RUST_BACKTRACE", "1"); 
  
+    // Ip and port to run on
     let address = "127.0.0.1:4200";
 
-    block_on(run_server(address));
+    // Start the server
+    let result = block_on(run_server(address));
+
+    if result.is_err() {
+        print!("Server exited with error");
+    } else {
+        print!("Done")
+    }
         
     Ok(())
 }
  
 async fn run_server(address: &str) -> std::io::Result<()> {
+    // Bind to the given address to listen to traffic
     let listener_result = TcpListener::bind(address).await?;
     
     println!("Server listening on {}", address);
 
+    // Listen for incoming traffic
     let mut incoming = listener_result.incoming();
     while let Some(stream) = incoming.next().await{
-        handle_client(stream.unwrap()).await?;
+        // Process request
+        process_client_request(stream.unwrap()).await?;
     }
     Ok(())
 }
 
-async fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {    
+async fn process_client_request(mut stream: TcpStream) -> std::io::Result<()> {    
     let (headers,body) = match headers::read_request(&mut stream).await {
         Ok(result) => result,
         Err(_) => {
@@ -43,7 +58,7 @@ async fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     
     if headers.len() == 0 {
         let headers: Vec<&str> = Vec::new();
-        send_response(&mut stream,response::response_codes::HTTP_400_BAD_REQUEST,&headers,"").await;
+        send_response(&mut stream,HTTP_400_BAD_REQUEST,&headers,"").await;
         println!("Bad request");
         return Ok(());
     }
@@ -54,8 +69,8 @@ async fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
     };
     println!("{}",path);
 
-
-    response::send_static_file(&mut stream, path, &body).await?;
+    
+    send_static_file(&mut stream, path, &body).await?;
     println!("Request processed\n");
     Ok(())
 }

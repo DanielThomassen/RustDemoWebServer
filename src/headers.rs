@@ -63,13 +63,19 @@ pub async fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String
         current_line.clear();
         is_header_name = true;
     }
-    println!("{} {}",headers[headers.len() -1].0,headers[headers.len() -1].1);
-    current_line.clear();
-    let mut i = 0;
-    let mut body = String::new();
+
+    let header_length = headers.len();
     
-    loop {
-        i += 1;
+    if header_length > 0 {
+        println!("{} {}",headers[header_length -1].0,headers[header_length -1].1);
+    } else {
+        println!("No headers");
+    }
+
+    current_line.clear();
+    
+    let mut body = String::new();    
+    loop {        
         let bytes_read = match async_std::io::timeout(core::time::Duration::from_millis(100), reader.read(&mut buf)).await {
             Ok(num) => num,
             Err(_) => 0
