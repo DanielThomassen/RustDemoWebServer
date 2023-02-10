@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
-use std::io::Write;
-use std::{net::TcpStream};
+use async_std::io::WriteExt;
+use async_std::net::TcpStream;
 use crate::helpers::{write_string, get_extension};
-use chrono::{Utc};
+use chrono::Utc;
 use std::io::Read;
 use std::io::BufReader;
 
@@ -15,7 +15,7 @@ pub mod response_codes {
 }
 
 
-pub fn send_static_file(stream: &mut TcpStream, requested_path: &str, request_body: &str) -> std::io::Result<()> {
+pub async fn send_static_file(stream: &mut TcpStream, requested_path: &str, request_body: &str) -> std::io::Result<()> {
     let mut path = String::from("wwwroot/");
 
     let mut end_index = requested_path.len();    
@@ -46,7 +46,7 @@ pub fn send_static_file(stream: &mut TcpStream, requested_path: &str, request_bo
         
     let mut headers: Vec<&str> = Vec::new();
     println!("path {}",path.as_str());
-    let mut body = String::new();
+    let body: String;
     let file_exists = std::path::Path::new(path.as_str()).is_file();
     match std::fs::read_to_string(path.as_str()) {
         Ok(v) => {
@@ -56,7 +56,7 @@ pub fn send_static_file(stream: &mut TcpStream, requested_path: &str, request_bo
         }
         Err(_) => {
             if file_exists {
-                send_binary_file(stream, path.as_str());
+                send_binary_file(stream, path.as_str()).await;
                 return Ok(());
             } else {                
                 body = "<html><body><h1>Not found</h1><p>Page not found</p></body></html>".to_owned();
@@ -66,11 +66,11 @@ pub fn send_static_file(stream: &mut TcpStream, requested_path: &str, request_bo
         }
     };
 
-    send_response(stream,status_code,&headers,body.as_str());
+    send_response(stream,status_code,&headers,body.as_str()).await;
     Ok(())
 }
 
-fn send_binary_file(stream: &mut TcpStream, path: &str) {
+async fn send_binary_file(stream: &mut TcpStream, path: &str) {
     let content_type = get_content_type_header(path);
     let mut headers : Vec<&str> = Vec::new();
     headers.push(content_type);
@@ -83,10 +83,10 @@ fn send_binary_file(stream: &mut TcpStream, path: &str) {
     let content_length = std::format!("content-length: {}", buffer.len());    
     headers.push(content_length.as_str());
 
-    write_headers(stream, response_codes::HTTP_200_OK, &headers);
+    write_headers(stream, response_codes::HTTP_200_OK, &headers).await;
 
-    
-    match stream.write_all(&buffer) {
+  
+    match stream.write_all(&buffer).await {
         Ok(_) => (),
         Err(e) => {
             println!("Error when writing binary file {}", e);
@@ -95,19 +95,19 @@ fn send_binary_file(stream: &mut TcpStream, path: &str) {
 }
 
 
-pub fn send_response(stream: &mut TcpStream, status_code: &str, additional_headers: &Vec<&str>, body: &str) {
-    write_headers(stream, status_code, additional_headers);
+pub async fn send_response(stream: &mut TcpStream, status_code: &str, additional_headers: &Vec<&str>, body: &str) {
+    write_headers(stream, status_code, additional_headers).await;
 
     if body.len() > 0 {
-        write_string(stream, body);
+        write_string(stream, body).await;
     }
 }
 
-fn write_headers(stream: &mut TcpStream, status_code: &str, additional_headers: &Vec<&str>) {
+async fn write_headers(stream: &mut TcpStream, status_code: &str, additional_headers: &Vec<&str>) {
     // Http Status code
-    write_string(stream, "HTTP/1.1 ");
-    write_string(stream, status_code);
-    write_string(stream, "\n");
+    write_string(stream, "HTTP/1.1 ").await;
+    write_string(stream, status_code).await;
+    write_string(stream, "\n").await;
 
     println!("{}", status_code);
     // Send time
@@ -115,17 +115,17 @@ fn write_headers(stream: &mut TcpStream, status_code: &str, additional_headers: 
     let formdatted_date = now.format("%a, %d %b %Y %T GMT").to_string();
     let date_header = std::format!("date: {}\n",formdatted_date);
     
-    write_string(stream, date_header.as_str());
+    write_string(stream, date_header.as_str()).await;
     // Server name
-    write_string(stream, "Server: RnD Poopy Rust Server\n");
+    write_string(stream, "Server: RnD Poopy Rust Server\n").await;
     // Additional headers
     if additional_headers.len() > 0 {
         for header in additional_headers {
-            write_string(stream, header);
-            write_string(stream, "\n");
+            write_string(stream, header).await;
+            write_string(stream, "\n").await;
         }
     }
-    write_string(stream, "\n");
+    write_string(stream, "\n").await;
 }
 
 // Get content type header based on file extension

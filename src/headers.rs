@@ -1,5 +1,5 @@
-use std::net::TcpStream;
-use std::io::{BufReader, Read};
+use async_std::{net::TcpStream, io::ReadExt};
+use async_std::io::BufReader;
 
 
 pub fn get_path(headers: &Vec<(String,String)>) -> Result<&str, &str> {
@@ -11,7 +11,7 @@ pub fn get_path(headers: &Vec<(String,String)>) -> Result<&str, &str> {
     split.nth(1).ok_or("/")
 }
 
-pub fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String)>,String), ()> {
+pub async fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String)>,String), ()> {
     let mut current_line: Vec<u8> = Default::default();
 
     const NEWLINE: u8 = 10;
@@ -21,17 +21,17 @@ pub fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String)>,Str
     let mut reader = BufReader::new(stream);
     let mut is_header_name = true;
 
-
     let header_separator: u8 = 58;
 
     let mut header_name = String::from("");
 
     loop {
-        let bytes_read = match reader.read(&mut buf) {
-            Ok(num) => num,
-            Err(_) => 0
-        };
-
+        let mut bytes_read = 0;
+        let foo =  reader.read(&mut buf).await;        
+        if foo.is_ok() {
+            bytes_read = foo.unwrap();
+        }
+        
         if bytes_read == 0 {
             break;
         }
@@ -67,13 +67,13 @@ pub fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String)>,Str
     current_line.clear();
     let mut i = 0;
     let mut body = String::new();
+    
     loop {
         i += 1;
-        let bytes_read = match reader.read(&mut buf) {
+        let bytes_read = match async_std::io::timeout(core::time::Duration::from_millis(100), reader.read(&mut buf)).await {
             Ok(num) => num,
             Err(_) => 0
         };
-        println!("body {}",i);
 
         if bytes_read == 0 {
             break;

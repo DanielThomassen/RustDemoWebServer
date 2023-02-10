@@ -1,11 +1,10 @@
 #![allow(dead_code)]
-use std::net::TcpStream;
-use std::io::Write;
+use async_std::{net::TcpStream, io::WriteExt};
 
 
 
-pub fn write_string(stream: &mut TcpStream, value: &str) {
-    match stream.write(value.as_bytes()) {
+pub async fn write_string(stream: &mut TcpStream, value: &str) {
+    match stream.write_all(value.as_bytes()).await {
         Ok(_) => (),
         Err(e) => {
             println!("Failed to write value to stream:{0}, {1}", value,e);
