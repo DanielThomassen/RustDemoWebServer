@@ -23,8 +23,8 @@ fn main() -> std::io::Result<()> {
     // Start the server
     let result = block_on(run_server(address));
 
-    if result.is_err() {
-        print!("Server exited with error");
+    if result.is_err() {        
+        print!("Server exited with error: \n{}", result.unwrap_err());
     } else {
         print!("Done")
     }

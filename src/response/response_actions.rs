@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use async_std::io::WriteExt;
 use async_std::net::TcpStream;
-use websocket::header::q;
 use crate::helpers::{write_string, get_extension};
 use chrono::Utc;
 use std::io::Read;
@@ -161,8 +160,7 @@ fn get_content_type_header(file: &str) -> &str {
 
 /// Parse request variables and return (template) page
 fn render_page(contents: &str, _headers: &Vec<&str>, body: &str, query: &str) -> String {
-    let mut data:BTreeMap<String, String> = BTreeMap::new();
-
+    let mut data:BTreeMap<String, String> = BTreeMap::new();    
     // TODO query params
     if query.len() > 0 {
         println!("Query: {}", query);
@@ -223,6 +221,8 @@ fn parse_query_string(query: &str) -> HashMap<String,String> {
 /// Render handlebars template to string
 fn render_handlebars_template(template: &str, data: &BTreeMap<String,String>) -> String {
     let mut handlebars = handlebars::Handlebars::new();
+
+    
 
     assert!(handlebars.register_template_string("t1", template).is_ok());
 
