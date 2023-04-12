@@ -6,8 +6,8 @@ pub fn get_path(headers: &Vec<(String,String)>) -> Result<&str, &str> {
     if headers.len() == 0 {
         return Ok("/");
     }
-    let mut split = headers[0].0.split(' ');
 
+    let mut split = headers[0].0.split(' ');    
     split.nth(1).ok_or("/")
 }
 
@@ -18,6 +18,8 @@ pub async fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String
     let mut buf: [u8; 1] = Default::default();
 
     let mut headers: Vec<(String, String)> = Vec::new();
+
+
     let mut reader = BufReader::new(stream);
     let mut is_header_name = true;
 
@@ -27,9 +29,11 @@ pub async fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String
 
     loop {
         let mut bytes_read = 0;
-        let foo =  reader.read(&mut buf).await;        
-        if foo.is_ok() {
-            bytes_read = foo.unwrap();
+        
+        let read_result =  reader.read(&mut buf).await;        
+        match read_result {
+            Ok(b) => bytes_read = b,
+            Err(_) => bytes_read = 0
         }
         
         if bytes_read == 0 {
@@ -40,7 +44,7 @@ pub async fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String
 
         if char == header_separator && is_header_name {
             is_header_name = false;
-            header_name = crate::helpers::byte_array_to_string(&current_line);
+            header_name = crate::helpers::byte_array_to_string(&current_line);            
             current_line.clear();
             continue;
         }
@@ -56,10 +60,12 @@ pub async fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String
         if is_header_name {
             headers.push((value.to_owned(), String::from("")));
         } else {
-            let key = header_name.clone();
-            headers.push((key, value.to_owned()));
+            let key = header_name.clone();            
+            headers.push((key, value.to_owned()));            
         }
         header_name = String::from("");
+        
+        
         current_line.clear();
         is_header_name = true;
     }
