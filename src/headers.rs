@@ -28,13 +28,11 @@ pub async fn read_request(stream: &mut TcpStream) -> Result<(Vec<(String, String
     let mut header_name = String::from("");
 
     loop {
-        let mut bytes_read = 0;
-        
         let read_result =  reader.read(&mut buf).await;        
-        match read_result {
-            Ok(b) => bytes_read = b,
-            Err(_) => bytes_read = 0
-        }
+        let bytes_read = match read_result {
+            Ok(b) => b,
+            Err(_) => 0
+        };
         
         if bytes_read == 0 {
             break;
